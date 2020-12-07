@@ -11,5 +11,8 @@ fn main() {
     }
 
     let mut vm = Vm::new();
+    vm.setup(loader.data());
     vm.process(loader.data());
+
+    println!();
 }
