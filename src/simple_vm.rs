@@ -1,11 +1,10 @@
-use crate::instruction::Instruction;
 use crate::profiler::Profiler;
 use std::collections::HashMap;
 use std::io;
 
 const BF_MEMORY_BYTES: usize = 30000;
 
-pub(crate) struct Vm {
+pub(crate) struct SimpleVm {
     instruction_pointer: usize,
     data_pointer: usize,
     bracket_depth: usize,
@@ -16,7 +15,7 @@ pub(crate) struct Vm {
     output_profile: bool,
 }
 
-impl Vm {
+impl SimpleVm {
     pub(crate) fn new() -> Self {
         Self {
             instruction_pointer: 0,
@@ -24,57 +23,52 @@ impl Vm {
             bracket_depth: 0,
             memory: [0; BF_MEMORY_BYTES],
             bracket_table: HashMap::new(),
-            use_bracket_table: true,
+            use_bracket_table: false,
             profiler: Profiler::new(),
             output_profile: true,
         }
     }
 
-    pub(crate) fn setup(&mut self, instructions: &Vec<Instruction>) {
-        self.make_bracket_table(instructions);
+    pub(crate) fn setup(&mut self, program: &Vec<u8>) {
+        self.make_bracket_table(program);
     }
 
-    pub(crate) fn process(&mut self, instructions: &Vec<Instruction>) {
+    pub(crate) fn process(&mut self, program: &Vec<u8>) {
         self.reset();
 
-        while self.instruction_pointer < instructions.len() {
-            let instruction = &instructions[self.instruction_pointer];
-            match instruction.kind {
+        while self.instruction_pointer < program.len() {
+            match char::from(program[self.instruction_pointer] & 0xff) {
                 '>' => {
-                    self.profiler.rshift += instruction.number;
-                    self.data_pointer = self.data_pointer.wrapping_add(instruction.number);
+                    self.profiler.rshift += 1;
+                    self.data_pointer = self.data_pointer.wrapping_add(1);
                 }
                 '<' => {
-                    self.profiler.lshift += instruction.number;
-                    self.data_pointer = self.data_pointer.wrapping_sub(instruction.number);
+                    self.profiler.lshift += 1;
+                    self.data_pointer = self.data_pointer.wrapping_sub(1);
                 }
                 '+' => {
-                    self.profiler.plus += instruction.number;
-                    self.memory[self.data_pointer] =
-                        self.memory[self.data_pointer].wrapping_add(instruction.number as u8)
+                    self.profiler.plus += 1;
+                    self.memory[self.data_pointer] = self.memory[self.data_pointer].wrapping_add(1)
                 }
                 '-' => {
-                    self.profiler.minus += instruction.number;
-                    self.memory[self.data_pointer] =
-                        self.memory[self.data_pointer].wrapping_sub(instruction.number as u8)
+                    self.profiler.minus += 1;
+                    self.memory[self.data_pointer] = self.memory[self.data_pointer].wrapping_sub(1)
                 }
                 '.' => {
-                    self.profiler.dot += instruction.number;
-                    for _ in 0..instruction.number {
-                        print!("{}", (self.memory[self.data_pointer] as char).to_string());
-                    }
+                    self.profiler.dot += 1;
+                    print!("{}", (self.memory[self.data_pointer] as char).to_string());
                 }
                 ',' => {
-                    self.profiler.comma += instruction.number;
+                    self.profiler.comma += 1;
                     self.memory[self.data_pointer] = self.read_1st_u8();
                 }
                 '[' => {
-                    self.profiler.lbracket += instruction.number;
-                    self.process_left_bracket(instructions);
+                    self.profiler.lbracket += 1;
+                    self.process_left_bracket(program);
                 }
                 ']' => {
-                    self.profiler.rbracket += instruction.number;
-                    self.process_right_bracket(instructions);
+                    self.profiler.rbracket += 1;
+                    self.process_right_bracket(program);
                 }
                 _ => { /* do nothing */ }
             }
@@ -94,7 +88,7 @@ impl Vm {
         word.trim().chars().nth(0).unwrap() as u8
     }
 
-    fn process_left_bracket(&mut self, instructions: &Vec<Instruction>) {
+    fn process_left_bracket(&mut self, program: &Vec<u8>) {
         if self.use_bracket_table {
             if self.memory[self.data_pointer] == 0 {
                 self.instruction_pointer =
@@ -104,16 +98,15 @@ impl Vm {
             if self.memory[self.data_pointer] != 0 {
                 self.bracket_depth = self.bracket_depth.wrapping_add(1);
             } else {
-                self.seek_right_bracket(instructions);
+                self.seek_right_bracket(program);
             }
         }
     }
 
-    fn seek_left_bracket(&mut self, instructions: &Vec<Instruction>) {
+    fn seek_left_bracket(&mut self, program: &Vec<u8>) {
         let right_bracket_depth = self.bracket_depth;
-        while self.instruction_pointer < instructions.len() {
-            let instruction = &instructions[self.instruction_pointer];
-            match instruction.kind {
+        while self.instruction_pointer < program.len() {
+            match char::from(program[self.instruction_pointer] & 0xff) {
                 '[' => {
                     self.bracket_depth = self.bracket_depth.wrapping_add(1);
                     if self.bracket_depth == right_bracket_depth {
@@ -127,7 +120,7 @@ impl Vm {
         }
     }
 
-    fn process_right_bracket(&mut self, instructions: &Vec<Instruction>) {
+    fn process_right_bracket(&mut self, program: &Vec<u8>) {
         if self.use_bracket_table {
             if self.memory[self.data_pointer] != 0 {
                 self.instruction_pointer =
@@ -135,18 +128,17 @@ impl Vm {
             }
         } else {
             if self.memory[self.data_pointer] != 0 {
-                self.seek_left_bracket(instructions);
+                self.seek_left_bracket(program);
             } else {
                 self.bracket_depth = self.bracket_depth.wrapping_sub(1);
             }
         }
     }
 
-    fn seek_right_bracket(&mut self, instructions: &Vec<Instruction>) {
+    fn seek_right_bracket(&mut self, program: &Vec<u8>) {
         let left_bracket_depth = self.bracket_depth;
-        while (self.bracket_depth < usize::MAX) && (self.instruction_pointer < instructions.len()) {
-            let instruction = &instructions[self.instruction_pointer];
-            match instruction.kind {
+        while (self.bracket_depth < usize::MAX) && (self.instruction_pointer < program.len()) {
+            match char::from(program[self.instruction_pointer] & 0xff) {
                 '[' => self.bracket_depth = self.bracket_depth.wrapping_add(1),
                 ']' => {
                     self.bracket_depth = self.bracket_depth.wrapping_sub(1);
@@ -169,12 +161,12 @@ impl Vm {
         }
     }
 
-    fn make_bracket_table(&mut self, instructions: &Vec<Instruction>) -> bool {
+    fn make_bracket_table(&mut self, program: &Vec<u8>) -> bool {
         let mut left_brackets: Vec<usize> = Vec::new();
         let mut ip = 0;
 
-        for instruction in instructions {
-            match instruction.kind {
+        for ch in program {
+            match *ch as char {
                 '[' => {
                     left_brackets.push(ip);
                 }
