@@ -1,3 +1,4 @@
+use crate::opt::Opt;
 use crate::profiler::Profiler;
 use std::collections::HashMap;
 use std::io;
@@ -10,9 +11,7 @@ pub(crate) struct SimpleVm {
     bracket_depth: usize,
     memory: [u8; BF_MEMORY_BYTES],
     bracket_table: HashMap<usize, usize>,
-    use_bracket_table: bool,
     profiler: Profiler,
-    output_profile: bool,
 }
 
 impl SimpleVm {
@@ -23,17 +22,15 @@ impl SimpleVm {
             bracket_depth: 0,
             memory: [0; BF_MEMORY_BYTES],
             bracket_table: HashMap::new(),
-            use_bracket_table: false,
             profiler: Profiler::new(),
-            output_profile: true,
         }
     }
 
-    pub(crate) fn setup(&mut self, program: &Vec<u8>) {
+    pub(crate) fn setup(&mut self, program: &Vec<u8>, _opt: &Opt) {
         self.make_bracket_table(program);
     }
 
-    pub(crate) fn process(&mut self, program: &Vec<u8>) {
+    pub(crate) fn process(&mut self, program: &Vec<u8>, opt: &Opt) {
         self.reset();
 
         while self.instruction_pointer < program.len() {
@@ -64,11 +61,11 @@ impl SimpleVm {
                 }
                 '[' => {
                     self.profiler.lbracket += 1;
-                    self.process_left_bracket(program);
+                    self.process_left_bracket(program, opt);
                 }
                 ']' => {
                     self.profiler.rbracket += 1;
-                    self.process_right_bracket(program);
+                    self.process_right_bracket(program, opt);
                 }
                 _ => { /* do nothing */ }
             }
@@ -76,8 +73,8 @@ impl SimpleVm {
         }
     }
 
-    pub(crate) fn output_profiling_result(&self) {
-        if self.output_profile {
+    pub(crate) fn output_profiling_result(&self, opt: &Opt) {
+        if opt.use_profiler {
             self.profiler.output();
         }
     }
@@ -88,8 +85,8 @@ impl SimpleVm {
         word.trim().chars().nth(0).unwrap() as u8
     }
 
-    fn process_left_bracket(&mut self, program: &Vec<u8>) {
-        if self.use_bracket_table {
+    fn process_left_bracket(&mut self, program: &Vec<u8>, opt: &Opt) {
+        if opt.use_bracket_table {
             if self.memory[self.data_pointer] == 0 {
                 self.instruction_pointer =
                     *self.bracket_table.get(&self.instruction_pointer).unwrap();
@@ -120,8 +117,8 @@ impl SimpleVm {
         }
     }
 
-    fn process_right_bracket(&mut self, program: &Vec<u8>) {
-        if self.use_bracket_table {
+    fn process_right_bracket(&mut self, program: &Vec<u8>, opt: &Opt) {
+        if opt.use_bracket_table {
             if self.memory[self.data_pointer] != 0 {
                 self.instruction_pointer =
                     *self.bracket_table.get(&self.instruction_pointer).unwrap();

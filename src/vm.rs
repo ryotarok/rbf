@@ -1,5 +1,6 @@
 use crate::instruction::Instruction;
 use crate::profiler::Profiler;
+use crate::Opt;
 use std::collections::HashMap;
 use std::io;
 
@@ -11,9 +12,7 @@ pub(crate) struct Vm {
     bracket_depth: usize,
     memory: [u8; BF_MEMORY_BYTES],
     bracket_table: HashMap<usize, usize>,
-    use_bracket_table: bool,
     profiler: Profiler,
-    output_profile: bool,
 }
 
 impl Vm {
@@ -24,17 +23,15 @@ impl Vm {
             bracket_depth: 0,
             memory: [0; BF_MEMORY_BYTES],
             bracket_table: HashMap::new(),
-            use_bracket_table: true,
             profiler: Profiler::new(),
-            output_profile: true,
         }
     }
 
-    pub(crate) fn setup(&mut self, instructions: &Vec<Instruction>) {
+    pub(crate) fn setup(&mut self, instructions: &Vec<Instruction>, _opt: &Opt) {
         self.make_bracket_table(instructions);
     }
 
-    pub(crate) fn process(&mut self, instructions: &Vec<Instruction>) {
+    pub(crate) fn process(&mut self, instructions: &Vec<Instruction>, opt: &Opt) {
         self.reset();
 
         while self.instruction_pointer < instructions.len() {
@@ -70,11 +67,11 @@ impl Vm {
                 }
                 '[' => {
                     self.profiler.lbracket += instruction.number;
-                    self.process_left_bracket(instructions);
+                    self.process_left_bracket(instructions, opt);
                 }
                 ']' => {
                     self.profiler.rbracket += instruction.number;
-                    self.process_right_bracket(instructions);
+                    self.process_right_bracket(instructions, opt);
                 }
                 _ => { /* do nothing */ }
             }
@@ -82,8 +79,8 @@ impl Vm {
         }
     }
 
-    pub(crate) fn output_profiling_result(&self) {
-        if self.output_profile {
+    pub(crate) fn output_profiling_result(&self, opt: &Opt) {
+        if opt.use_profiler {
             self.profiler.output();
         }
     }
@@ -94,8 +91,8 @@ impl Vm {
         word.trim().chars().nth(0).unwrap() as u8
     }
 
-    fn process_left_bracket(&mut self, instructions: &Vec<Instruction>) {
-        if self.use_bracket_table {
+    fn process_left_bracket(&mut self, instructions: &Vec<Instruction>, opt: &Opt) {
+        if opt.use_bracket_table {
             if self.memory[self.data_pointer] == 0 {
                 self.instruction_pointer =
                     *self.bracket_table.get(&self.instruction_pointer).unwrap();
@@ -127,8 +124,8 @@ impl Vm {
         }
     }
 
-    fn process_right_bracket(&mut self, instructions: &Vec<Instruction>) {
-        if self.use_bracket_table {
+    fn process_right_bracket(&mut self, instructions: &Vec<Instruction>, opt: &Opt) {
+        if opt.use_bracket_table {
             if self.memory[self.data_pointer] != 0 {
                 self.instruction_pointer =
                     *self.bracket_table.get(&self.instruction_pointer).unwrap();

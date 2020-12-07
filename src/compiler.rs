@@ -1,4 +1,5 @@
 use crate::instruction::Instruction;
+use crate::opt::Opt;
 
 pub(crate) struct Compiler {
     pub(crate) instructions: Vec<Instruction>,
@@ -11,7 +12,7 @@ impl Compiler {
         }
     }
 
-    pub(crate) fn compile(&mut self, program: &Vec<u8>) {
+    pub(crate) fn compile(&mut self, program: &Vec<u8>, _opt: &Opt) {
         let mut prev_ch: char = '\0';
         let mut chars: usize = 0;
 
@@ -46,10 +47,12 @@ impl Compiler {
         }
     }
 
-    pub(crate) fn dump_instructions(&self) {
-        for instruction in &self.instructions {
-            if instruction.kind == '[' || instruction.kind == ']' {
-                println!("kind:{}, num:{}", instruction.kind, instruction.number);
+    pub(crate) fn dump_instructions(&self, opt: &Opt) {
+        if opt.dump_instruction {
+            for instruction in &self.instructions {
+                if instruction.kind == '[' || instruction.kind == ']' {
+                    println!("kind:{}, num:{}", instruction.kind, instruction.number);
+                }
             }
         }
     }

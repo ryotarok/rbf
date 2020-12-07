@@ -1,4 +1,4 @@
-use std::env;
+use crate::Opt;
 use std::fs::File;
 use std::io::Read;
 
@@ -11,14 +11,11 @@ impl Loader {
         Self { data: Vec::new() }
     }
 
-    pub(crate) fn load(&mut self) -> bool {
-        let args: Vec<String> = env::args().collect();
-        let filepath = if args.len() > 1 {
-            &args[1]
-        } else {
+    pub(crate) fn load(&mut self, opt: &Opt) -> bool {
+        if opt.filepath.as_str() == "" {
             return false;
         };
-        self.data = Loader::load_from_file(filepath);
+        self.data = Loader::load_from_file(opt.filepath.as_str());
         true
     }
 
