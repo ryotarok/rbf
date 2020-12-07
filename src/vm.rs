@@ -1,3 +1,4 @@
+use crate::profiler::Profiler;
 use std::collections::HashMap;
 use std::io;
 
@@ -10,6 +11,8 @@ pub(crate) struct Vm {
     memory: [u8; BF_MEMORY_BYTES],
     bracket_table: HashMap<usize, usize>,
     use_bracket_table: bool,
+    profiler: Profiler,
+    output_profile: bool,
 }
 
 impl Vm {
@@ -21,6 +24,8 @@ impl Vm {
             memory: [0; BF_MEMORY_BYTES],
             bracket_table: HashMap::new(),
             use_bracket_table: false,
+            profiler: Profiler::new(),
+            output_profile: true,
         }
     }
 
@@ -33,21 +38,47 @@ impl Vm {
 
         while self.instruction_pointer < program.len() {
             match char::from(program[self.instruction_pointer] & 0xff) {
-                '>' => self.data_pointer = self.data_pointer.wrapping_add(1),
-                '<' => self.data_pointer = self.data_pointer.wrapping_sub(1),
+                '>' => {
+                    self.profiler.rshift += 1;
+                    self.data_pointer = self.data_pointer.wrapping_add(1);
+                }
+                '<' => {
+                    self.profiler.lshift += 1;
+                    self.data_pointer = self.data_pointer.wrapping_sub(1);
+                }
                 '+' => {
+                    self.profiler.plus += 1;
                     self.memory[self.data_pointer] = self.memory[self.data_pointer].wrapping_add(1)
                 }
                 '-' => {
+                    self.profiler.minus += 1;
                     self.memory[self.data_pointer] = self.memory[self.data_pointer].wrapping_sub(1)
                 }
-                '.' => print!("{}", (self.memory[self.data_pointer] as char).to_string()),
-                ',' => self.memory[self.data_pointer] = self.read_1st_u8(),
-                '[' => self.process_left_bracket(program),
-                ']' => self.process_right_bracket(program),
+                '.' => {
+                    self.profiler.dot += 1;
+                    print!("{}", (self.memory[self.data_pointer] as char).to_string());
+                }
+                ',' => {
+                    self.profiler.comma += 1;
+                    self.memory[self.data_pointer] = self.read_1st_u8();
+                }
+                '[' => {
+                    self.profiler.lbracket += 1;
+                    self.process_left_bracket(program);
+                }
+                ']' => {
+                    self.profiler.rbracket += 1;
+                    self.process_right_bracket(program);
+                }
                 _ => { /* do nothing */ }
             }
             self.instruction_pointer = self.instruction_pointer.wrapping_add(1);
+        }
+    }
+
+    pub(crate) fn output_profiling_result(&self) {
+        if self.output_profile {
+            self.profiler.output();
         }
     }
 

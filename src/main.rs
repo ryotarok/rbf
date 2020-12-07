@@ -1,4 +1,5 @@
 mod loader;
+mod profiler;
 mod vm;
 
 use loader::Loader;
@@ -13,6 +14,7 @@ fn main() {
     let mut vm = Vm::new();
     vm.setup(loader.data());
     vm.process(loader.data());
+    vm.output_profiling_result();
 
     println!();
 }
